@@ -205,8 +205,53 @@ eval1 <- function(obj, env) {
     }
     return(bind[['cdr']]())
   }
+
+  op = safeCar(obj)
+  args = safeCdr(obj)
+  if (identical(op,  makeSym('quote'))) {
+    return(safeCar(args))
+  } else if (identical(op, makeSym('if'))) {
+    if (identical(eval1(safeCar(args), env), kNil)) {
+      return(eval1(safeCar(safeCdr(safeCdr(args))), env))
+    }
+    return(eval1(safeCar(safeCdr(args)), env))
+  }
+  return(apply(eval1(op, env), evlis(args, env), env))
 }
 
+evlis <- function(lst, env) {
+  ret = kNil
+  while (lst[['tag']] == 'cons') {
+    elm <- eval1(lst[['car']](), env)
+    if (elm[['tag']] == 'error') {
+      return(elm)
+    }
+    ret = makeCons(elm, ret)
+    lst = lst[['cdr']]()
+  }
+  return(nreverse(ret))
+}
+
+apply <- function(fn, args, env) {
+  if (fn[['tag']] == 'error') {
+    return(fn)
+  } else if (args[['tag']] == 'error') {
+    return(args)
+  } else if (fn[['tag']] == 'subr') {
+    return(fn[['data']](args))
+  }
+  return(makeError('noimpl'))
+}
+
+subrCar <- function(args) { return(safeCar(safeCar(args))) }
+subrCdr <- function(args) { return(safeCdr(safeCar(args))) }
+subrCons <- function(args) {
+  return(makeCons(safeCar(args), safeCar(safeCdr(args))))
+}
+
+addToEnv(makeSym('car'), makeSubr(subrCar), g_env)
+addToEnv(makeSym('cdr'), makeSubr(subrCdr), g_env)
+addToEnv(makeSym('cons'), makeSubr(subrCons), g_env)
 addToEnv(makeSym('t'), makeSym('t'), g_env)
 
 con <- file(description='stdin', open='r')
