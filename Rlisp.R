@@ -50,6 +50,17 @@ makeExpr <- function(args, env) {
               'env' = env))
 }
 
+nreverse <- function(lst) {
+  ret <- kNil
+  while (lst[['tag']] == 'cons') {
+    tmp <- lst[['cdr']]
+    lst[['cdr']] <- ret
+    ret <- lst
+    lst <- tmp
+  }
+  return(ret)
+}
+
 isSpace <- function(c) {
   return(c == ' ' || c == '\t' || c == '\r' || c == '\n')
 }
@@ -93,18 +104,74 @@ read <- function(str) {
   } else if (substr(str, 1, 1) == kRPar) {
     return(list(makeError(paste('invalid synta: ', str)), ''))
   } else if (substr(str, 1, 1) == kLPar) {
-    return(list(makeError('noimpl'), ''))
+    return(readList(substr(str, 2, nchar(str))))
   } else if (substr(str, 1, 1) == kQuote) {
-    return(list(makeError('noimpl'), ''))
+    tmp <- read(substr(str, 2, nchar(str)))
+    return(list(makeCons(makeSym('quote'), makeCons(tmp[[1]], kNil)), tmp[[2]]))
   } else {
     return(readAtom(str))
   }
 }
 
+readList <- function(str) {
+  ret <- kNil
+  repeat {
+    str <- skipSpaces(str)
+    if (str == '') {
+      return(list(makeError('unfinished parenthesis'), ''))
+    } else if (substr(str, 1, 1) == kRPar) {
+      break
+    }
+    tmp <- read(str)
+    elm <- tmp[[1]]
+    nxt <- tmp[[2]]
+    if (elm[['tag']] == 'error') {
+      return(list(elm, ''))
+    }
+    ret <- makeCons(elm, ret)
+    str <- nxt
+  }
+  return(list(nreverse(ret), substr(str, 2, nchar(str))))
+}
+
+printObj <- function (obj) {
+  if (obj[['tag']] == 'num' || obj[['tag']] == 'sym' || obj[['tag']] == 'nil') {
+    return(paste(obj[['data']]))
+  } else if (obj[['tag']] == 'error') {
+    return(paste('<error:', obj[['data']], '>'))
+  } else if (obj[['tag']] == 'cons') {
+    return(printList(obj))
+  } else if (obj[['tag']] == 'subr') {
+    return('<subr>')
+  } else if (obj[['tag']] == 'expr') {
+    return('<expr>')
+  }
+  return('<unknown>')
+}
+
+printList <- function(obj) {
+  ret <- ''
+  first = TRUE
+  while (obj[['tag']] == 'cons') {
+    if (first) {
+      ret <- printObj(obj[['car']])
+      first <- FALSE
+    } else {
+      ret <- paste(ret, printObj(obj[['car']]))
+    }
+    obj <- obj[['cdr']]
+  }
+  if (obj[['tag']] == 'nil') {
+    return(paste('(', ret, ')', sep=''))
+  }
+  return(paste('(', ret, ' . ', printObj(obj), ')', sep=''))
+}
+
 con <- file(description='stdin', open='r')
 cat('> ')
 while (length(line <- readLines(con, n = 1, warn = FALSE)) > 0) {
-  cat(paste(read(line), '\n'))
+  tmp <- read(line)
+  cat(paste(printObj(tmp[[1]]), '\n', sep=''))
   cat('> ')
 }
 close(con)
