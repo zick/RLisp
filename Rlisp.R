@@ -228,10 +228,20 @@ eval1 <- function(obj, env) {
   } else if (identical(op, makeSym('lambda'))) {
     return(makeExpr(args, env))
   } else if (identical(op, makeSym('defun'))) {
-    expr = makeExpr(safeCdr(args), env)
-    sym = safeCar(args)
+    expr <- makeExpr(safeCdr(args), env)
+    sym <- safeCar(args)
     addToEnv(sym, expr, g_env)
     return(sym)
+  } else if (identical(op, makeSym('setq'))) {
+    val <- eval1(safeCar(safeCdr(args)), env)
+    sym <- safeCar(args)
+    bind <- findVar(sym, env)
+    if (identical(bind, kNil)) {
+      addToEnv(sym, val, g_env)
+    } else {
+      bind[['set_cdr']](val)
+    }
+    return(val)
   }
   return(apply(eval1(op, env), evlis(args, env), env))
 }
