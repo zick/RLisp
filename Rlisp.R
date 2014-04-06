@@ -287,10 +287,79 @@ subrCdr <- function(args) { return(safeCdr(safeCar(args))) }
 subrCons <- function(args) {
   return(makeCons(safeCar(args), safeCar(safeCdr(args))))
 }
+subrEq <- function(args) {
+  x <- safeCar(args)
+  y <- safeCar(safeCdr(args))
+  if (x[['tag']] == 'num' && y[['tag']] == 'num') {
+    if (x[['data']] == y[['data']]) {
+      return(makeSym('t'))
+    }
+    return(kNil)
+  }
+  if (identical(x, y)) {
+    return(makeSym('t'))
+  }
+  return(kNil)
+}
+subrAtom <- function(args) {
+  if (safeCar(args)[['tag']] == 'cons') {
+    return(kNil)
+  }
+  return(makeSym('t'))
+}
+subrNumberp <- function(args) {
+  if (safeCar(args)[['tag']] == 'num') {
+    return(makeSym('t'))
+  }
+  return(kNil)
+}
+subrSymbolp <- function(args) {
+  if (safeCar(args)[['tag']] == 'sym') {
+    return(makeSym('t'))
+  }
+  return(kNil)
+}
+subrAddOrMul <- function(fn, init_val) {
+  return(function(args) {
+    ret <- init_val
+    while (args[['tag']] == 'cons') {
+      if (args[['car']]()[['tag']] != 'num') {
+        return(makeError('wrong type'))
+      }
+      ret <- fn(ret, args[['car']]()[['data']])
+      args <- args[['cdr']]()
+    }
+    return(makeNum(ret))
+  })
+}
+subrAdd <- subrAddOrMul(function(x,y) x + y, 0)
+subrMul <- subrAddOrMul(function(x,y) x * y, 1)
+subrSubOrDivOrMod <- function(fn) {
+  return(function(args) {
+    x <- safeCar(args)
+    y <- safeCar(safeCdr(args))
+    if (x[['tag']] != 'num' || y[['tag']] != 'num') {
+      return(makeError('wrong type'))
+    }
+    return(makeNum(fn(x[['data']], y[['data']])))
+  })
+}
+subrSub <- subrSubOrDivOrMod(function(x,y) x - y)
+subrDiv <- subrSubOrDivOrMod(function(x,y) x %/% y)
+subrMod <- subrSubOrDivOrMod(function(x,y) x %% y)
 
 addToEnv(makeSym('car'), makeSubr(subrCar), g_env)
 addToEnv(makeSym('cdr'), makeSubr(subrCdr), g_env)
 addToEnv(makeSym('cons'), makeSubr(subrCons), g_env)
+addToEnv(makeSym('eq'), makeSubr(subrEq), g_env)
+addToEnv(makeSym('atom'), makeSubr(subrAtom), g_env)
+addToEnv(makeSym('numberp'), makeSubr(subrNumberp), g_env)
+addToEnv(makeSym('symbolp'), makeSubr(subrSymbolp), g_env)
+addToEnv(makeSym('+'), makeSubr(subrAdd), g_env)
+addToEnv(makeSym('*'), makeSubr(subrMul), g_env)
+addToEnv(makeSym('-'), makeSubr(subrSub), g_env)
+addToEnv(makeSym('/'), makeSubr(subrDiv), g_env)
+addToEnv(makeSym('mod'), makeSubr(subrMod), g_env)
 addToEnv(makeSym('t'), makeSym('t'), g_env)
 
 con <- file(description='stdin', open='r')
