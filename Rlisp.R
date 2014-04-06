@@ -68,6 +68,16 @@ nreverse <- function(lst) {
   return(ret)
 }
 
+pairlis <- function(lst1, lst2) {
+  ret <- kNil
+  while (lst1[['tag']] == 'cons' && lst2[['tag']] == 'cons') {
+    ret <- makeCons(makeCons(lst1[['car']](), lst2[['car']]()), ret)
+    lst1 <- lst1[['cdr']]()
+    lst2 <- lst2[['cdr']]()
+  }
+  return(nreverse(ret))
+}
+
 isSpace <- function(c) {
   return(c == ' ' || c == '\t' || c == '\r' || c == '\n')
 }
@@ -96,7 +106,7 @@ readAtom <- function(str) {
   nxt <- ''
   for (i in 1:nchar(str)) {
     if (isDelimiter(substr(str, i, i))) {
-      nxt = substr(str, i, nchar(str))
+      nxt <- substr(str, i, nchar(str))
       str <- substr(str, 1, i - 1)
       break
     }
@@ -158,7 +168,7 @@ printObj <- function (obj) {
 
 printList <- function(obj) {
   ret <- ''
-  first = TRUE
+  first <- TRUE
   while (obj[['tag']] == 'cons') {
     if (first) {
       ret <- printObj(obj[['car']]())
@@ -192,7 +202,7 @@ addToEnv <- function(sym, val, env) {
   env[['set_car']](makeCons(makeCons(sym, val), env[['car']]()))
 }
 
-g_env = makeCons(kNil, kNil)
+g_env <- makeCons(kNil, kNil)
 
 eval1 <- function(obj, env) {
   if (obj[['tag']] == 'nil' || obj[['tag']] == 'num' ||
@@ -206,8 +216,8 @@ eval1 <- function(obj, env) {
     return(bind[['cdr']]())
   }
 
-  op = safeCar(obj)
-  args = safeCdr(obj)
+  op <- safeCar(obj)
+  args <- safeCdr(obj)
   if (identical(op,  makeSym('quote'))) {
     return(safeCar(args))
   } else if (identical(op, makeSym('if'))) {
@@ -215,21 +225,32 @@ eval1 <- function(obj, env) {
       return(eval1(safeCar(safeCdr(safeCdr(args))), env))
     }
     return(eval1(safeCar(safeCdr(args)), env))
+  } else if (identical(op, makeSym('lambda'))) {
+    return(makeExpr(args, env))
   }
   return(apply(eval1(op, env), evlis(args, env), env))
 }
 
 evlis <- function(lst, env) {
-  ret = kNil
+  ret <- kNil
   while (lst[['tag']] == 'cons') {
     elm <- eval1(lst[['car']](), env)
     if (elm[['tag']] == 'error') {
       return(elm)
     }
-    ret = makeCons(elm, ret)
-    lst = lst[['cdr']]()
+    ret <- makeCons(elm, ret)
+    lst <- lst[['cdr']]()
   }
   return(nreverse(ret))
+}
+
+progn <- function(body, env) {
+  ret <- kNil
+  while (body[['tag']] == 'cons') {
+    ret <- eval1(body[['car']](), env)
+    body <- body[['cdr']]()
+  }
+  return(ret)
 }
 
 apply <- function(fn, args, env) {
@@ -239,6 +260,9 @@ apply <- function(fn, args, env) {
     return(args)
   } else if (fn[['tag']] == 'subr') {
     return(fn[['data']](args))
+  } else if (fn[['tag']] == 'expr') {
+    return(progn(fn[['body']],
+                 makeCons(pairlis(fn[['args']], args), fn[['env']])))
   }
   return(makeError('noimpl'))
 }
