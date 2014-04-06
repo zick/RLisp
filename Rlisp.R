@@ -5,14 +5,14 @@ kNil <- list('tag' = 'nil', 'data' = 'nil')
 
 safeCar <- function(obj) {
   if (obj[['tag']] == 'cons') {
-    return(obj[['car']])
+    return(obj[['car']]())
   }
   return(kNil)
 }
 
 safeCdr <- function(obj) {
   if (obj[['tag']] == 'cons') {
-    return(obj[['cdr']])
+    return(obj[['cdr']]())
   }
   return(kNil)
 }
@@ -36,7 +36,14 @@ makeNum <- function(num) {
 }
 
 makeCons <- function(a, d) {
-  return(list('tag' = 'cons', 'car' = a, 'cdr' = d))
+  car <- a  # Avoid lazy evaluation.
+  cdr <- d  # Avoid lazy evaluation.
+  ret <- list('tag' = 'cons')
+  ret[['car']] <- function() { return(car) }
+  ret[['cdr']] <- function() { return(cdr) }
+  ret[['set_car']] <- function(x) { car <<- x }
+  ret[['set_cdr']] <- function(x) { cdr <<- x }
+  return(ret)
 }
 
 makeSubr <- function(fn) {
@@ -53,8 +60,8 @@ makeExpr <- function(args, env) {
 nreverse <- function(lst) {
   ret <- kNil
   while (lst[['tag']] == 'cons') {
-    tmp <- lst[['cdr']]
-    lst[['cdr']] <- ret
+    tmp <- lst[['cdr']]()
+    lst[['set_cdr']](ret)
     ret <- lst
     lst <- tmp
   }
@@ -154,12 +161,12 @@ printList <- function(obj) {
   first = TRUE
   while (obj[['tag']] == 'cons') {
     if (first) {
-      ret <- printObj(obj[['car']])
+      ret <- printObj(obj[['car']]())
       first <- FALSE
     } else {
-      ret <- paste(ret, printObj(obj[['car']]))
+      ret <- paste(ret, printObj(obj[['car']]()))
     }
-    obj <- obj[['cdr']]
+    obj <- obj[['cdr']]()
   }
   if (obj[['tag']] == 'nil') {
     return(paste('(', ret, ')', sep=''))
@@ -167,11 +174,46 @@ printList <- function(obj) {
   return(paste('(', ret, ' . ', printObj(obj), ')', sep=''))
 }
 
+findVar <- function(sym, env) {
+  while (env[['tag']] == 'cons') {
+    alist <- env[['car']]()
+    while (alist[['tag']] == 'cons') {
+      if (identical(alist[['car']]()[['car']](), sym)) {
+        return(alist[['car']]())
+      }
+      alist <- alist[['cdr']]()
+    }
+    env <- env[['cdr']]()
+  }
+  return(kNil)
+}
+
+addToEnv <- function(sym, val, env) {
+  env[['set_car']](makeCons(makeCons(sym, val), env[['car']]()))
+}
+
+g_env = makeCons(kNil, kNil)
+
+eval1 <- function(obj, env) {
+  if (obj[['tag']] == 'nil' || obj[['tag']] == 'num' ||
+      obj[['tag']] == 'error') {
+    return(obj)
+  } else if (obj[['tag']] == 'sym') {
+    bind <- findVar(obj, env)
+    if (identical(bind, kNil)) {
+      return(makeError(paste(obj[['data']], 'has no value')))
+    }
+    return(bind[['cdr']]())
+  }
+}
+
+addToEnv(makeSym('t'), makeSym('t'), g_env)
+
 con <- file(description='stdin', open='r')
 cat('> ')
 while (length(line <- readLines(con, n = 1, warn = FALSE)) > 0) {
   tmp <- read(line)
-  cat(paste(printObj(tmp[[1]]), '\n', sep=''))
+  cat(paste(printObj(eval1(tmp[[1]], g_env)), '\n', sep=''))
   cat('> ')
 }
 close(con)
