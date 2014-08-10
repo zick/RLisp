@@ -30,6 +30,12 @@ makeSym <- function(str) {
   }
   return(sym_table[[str]])
 }
+sym_t <- makeSym('t')
+sym_quote <- makeSym('quote')
+sym_if <- makeSym('if')
+sym_lambda <- makeSym('lambda')
+sym_defun <- makeSym('defun')
+sym_setq <- makeSym('setq')
 
 makeNum <- function(num) {
   return(list('tag' = 'num', 'data' = num))
@@ -124,7 +130,7 @@ read <- function(str) {
     return(readList(substr(str, 2, nchar(str))))
   } else if (substr(str, 1, 1) == kQuote) {
     tmp <- read(substr(str, 2, nchar(str)))
-    return(list(makeCons(makeSym('quote'), makeCons(tmp[[1]], kNil)), tmp[[2]]))
+    return(list(makeCons(sym_quote, makeCons(tmp[[1]], kNil)), tmp[[2]]))
   } else {
     return(readAtom(str))
   }
@@ -218,21 +224,21 @@ eval1 <- function(obj, env) {
 
   op <- safeCar(obj)
   args <- safeCdr(obj)
-  if (identical(op,  makeSym('quote'))) {
+  if (identical(op,  sym_quote)) {
     return(safeCar(args))
-  } else if (identical(op, makeSym('if'))) {
+  } else if (identical(op, sym_if)) {
     if (identical(eval1(safeCar(args), env), kNil)) {
       return(eval1(safeCar(safeCdr(safeCdr(args))), env))
     }
     return(eval1(safeCar(safeCdr(args)), env))
-  } else if (identical(op, makeSym('lambda'))) {
+  } else if (identical(op, sym_lambda)) {
     return(makeExpr(args, env))
-  } else if (identical(op, makeSym('defun'))) {
+  } else if (identical(op, sym_defun)) {
     expr <- makeExpr(safeCdr(args), env)
     sym <- safeCar(args)
     addToEnv(sym, expr, g_env)
     return(sym)
-  } else if (identical(op, makeSym('setq'))) {
+  } else if (identical(op, sym_setq)) {
     val <- eval1(safeCar(safeCdr(args)), env)
     sym <- safeCar(args)
     bind <- findVar(sym, env)
@@ -292,12 +298,12 @@ subrEq <- function(args) {
   y <- safeCar(safeCdr(args))
   if (x[['tag']] == 'num' && y[['tag']] == 'num') {
     if (x[['data']] == y[['data']]) {
-      return(makeSym('t'))
+      return(sym_t)
     }
     return(kNil)
   }
   if (identical(x, y)) {
-    return(makeSym('t'))
+    return(sym_t)
   }
   return(kNil)
 }
@@ -305,17 +311,17 @@ subrAtom <- function(args) {
   if (safeCar(args)[['tag']] == 'cons') {
     return(kNil)
   }
-  return(makeSym('t'))
+  return(sym_t)
 }
 subrNumberp <- function(args) {
   if (safeCar(args)[['tag']] == 'num') {
-    return(makeSym('t'))
+    return(sym_t)
   }
   return(kNil)
 }
 subrSymbolp <- function(args) {
   if (safeCar(args)[['tag']] == 'sym') {
-    return(makeSym('t'))
+    return(sym_t)
   }
   return(kNil)
 }
@@ -360,7 +366,7 @@ addToEnv(makeSym('*'), makeSubr(subrMul), g_env)
 addToEnv(makeSym('-'), makeSubr(subrSub), g_env)
 addToEnv(makeSym('/'), makeSubr(subrDiv), g_env)
 addToEnv(makeSym('mod'), makeSubr(subrMod), g_env)
-addToEnv(makeSym('t'), makeSym('t'), g_env)
+addToEnv(sym_t, sym_t, g_env)
 
 con <- file(description='stdin', open='r')
 cat('> ')
