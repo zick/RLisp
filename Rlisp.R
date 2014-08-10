@@ -36,6 +36,9 @@ sym_if <- makeSym('if')
 sym_lambda <- makeSym('lambda')
 sym_defun <- makeSym('defun')
 sym_setq <- makeSym('setq')
+sym_loop <- makeSym('loop')
+sym_return <- makeSym('return')
+loop_value <- kNil
 
 makeNum <- function(num) {
   return(list('tag' = 'num', 'data' = num))
@@ -227,7 +230,10 @@ eval1 <- function(obj, env) {
   if (identical(op,  sym_quote)) {
     return(safeCar(args))
   } else if (identical(op, sym_if)) {
-    if (identical(eval1(safeCar(args), env), kNil)) {
+    c <- eval1(safeCar(args), env)
+    if (c[['tag']] == 'error') {
+      return(c)
+    } else if (identical(c, kNil)) {
       return(eval1(safeCar(safeCdr(safeCdr(args))), env))
     }
     return(eval1(safeCar(safeCdr(args)), env))
@@ -240,6 +246,9 @@ eval1 <- function(obj, env) {
     return(sym)
   } else if (identical(op, sym_setq)) {
     val <- eval1(safeCar(safeCdr(args)), env)
+    if (val[['tag']] == 'error') {
+      return(val)
+    }
     sym <- safeCar(args)
     bind <- findVar(sym, env)
     if (identical(bind, kNil)) {
@@ -248,6 +257,11 @@ eval1 <- function(obj, env) {
       bind[['set_cdr']](val)
     }
     return(val)
+  } else if (identical(op, sym_loop)) {
+    return(loop(args, env))
+  } else if (identical(op, sym_return)) {
+    loop_val <<- eval1(safeCar(args), env)
+    return(makeError(''))
   }
   return(apply(eval1(op, env), evlis(args, env), env))
 }
@@ -269,9 +283,24 @@ progn <- function(body, env) {
   ret <- kNil
   while (body[['tag']] == 'cons') {
     ret <- eval1(body[['car']](), env)
+    if (ret[['tag']] == 'error') {
+      return(ret)
+    }
     body <- body[['cdr']]()
   }
   return(ret)
+}
+
+loop <- function(body, env) {
+  while (TRUE) {
+    ret <- progn(body, env)
+    if (ret[['tag']] == 'error') {
+      if (ret[['data']] == '') {
+        return(loop_val)
+      }
+      return(ret)
+    }
+  }
 }
 
 apply <- function(fn, args, env) {
